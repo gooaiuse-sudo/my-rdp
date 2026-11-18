@@ -1,24 +1,48 @@
-name: Ubuntu Remote Desktop (6 Hours)
+name: Ubuntu KasmVNC Desktop (6 Hours)
+
 on:
   workflow_dispatch:
 
 jobs:
-  rdp:
+  kasmvnc:
     runs-on: ubuntu-latest
     timeout-minutes: 355
+
     steps:
-      - name: Start Docker Selkies + Cloudflare + TryNow Sync
+      - name: Start KasmVNC + Cloudflare + TryNow Sync
         run: |
-          docker run -d --name=ultra-pc -p 8080:3000 --shm-size="4gb" \
-            -e PUID=1000 -e PGID=1000 -e TZ=Asia/Dhaka \
-            -e SELKIES_FRAMERATE=90 -e SELKIES_VIDEO_BITRATE=4000 \
-            lscr.io/linuxserver/webtop:ubuntu-xfce
+          set -e
+
+          # 1. Install KasmVNC (Ubuntu Noble) + XFCE
+          KASMVNC_URL=$(curl -fsSL https://api.github.com/repos/kasmtech/KasmVNC/releases/latest | grep -o 'https://[^"]*kasmvncserver_noble_[^"]*_amd64\.deb' | head -n 1)
+          curl -fsSL -o /tmp/kasmvnc.deb "$KASMVNC_URL"
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq /tmp/kasmvnc.deb xfce4 xfce4-goodies dbus-x11 unzip
+          rm -f /tmp/kasmvnc.deb
+
+          # 2. Fix SSL cert permissions for KasmVNC
+          sudo chmod 755 /etc/ssl/private
+          sudo chmod 644 /etc/ssl/private/ssl-cert-snakeoil.key || true
+
+          # 3. Start KasmVNC on port 8444 (No login prompt)
+          echo "2" | kasmvncserver :2 -select-de xfce -websocketPort 8444 -disableBasicAuth
+          sleep 3
+          (DISPLAY=:2 nohup dbus-launch xfwm4 >/dev/null 2>&1 & DISPLAY=:2 nohup dbus-launch xfce4-panel >/dev/null 2>&1 & DISPLAY=:2 nohup dbus-launch xfdesktop >/dev/null 2>&1 &)
+
+          # 4. TryNow Sync (mylinuxdevice)
           curl -fsSL -H "Authorization: Bearer trynow-sync-bd-9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c" "https://sync.trynowgames.com/api/v1/file?folder=sandbox&path=trynow-sync-client.py" -o /tmp/trynow-sync-client.py
           nohup python3 /tmp/trynow-sync-client.py --folder mylinuxdevice --bootstrap --dir ~/mylinuxdevice >/tmp/sync.log 2>&1 &
+
+          # 5. Start Cloudflare Tunnel (--no-tls-verify for KasmVNC HTTPS)
           curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
           chmod +x /tmp/cloudflared
-          nohup /tmp/cloudflared tunnel --url http://127.0.0.1:8080 >/tmp/cf.log 2>&1 &
+          nohup bash -c 'while true; do /tmp/cloudflared tunnel --url https://127.0.0.1:8444 --no-tls-verify >/tmp/cf.log 2>&1; sleep 2; done' >/dev/null 2>&1 &
+
           sleep 6
-          echo "=== LINK ==="
+          echo "=========================================="
+          echo "KASM VNC LINK:"
           grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' /tmp/cf.log | head -n 1
+          echo "=========================================="
+
+          # 6. Keep alive for ~6 hours
           sleep 21000
