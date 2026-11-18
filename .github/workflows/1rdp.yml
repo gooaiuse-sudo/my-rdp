@@ -13,9 +13,8 @@ jobs:
         run: |
           set -e
 
-          # 1. Install KasmVNC (Ubuntu Noble) + XFCE
-          KASMVNC_URL=$(curl -fsSL https://api.github.com/repos/kasmtech/KasmVNC/releases/latest | grep -o 'https://[^"]*kasmvncserver_noble_[^"]*_amd64\.deb' | head -n 1)
-          curl -fsSL -o /tmp/kasmvnc.deb "$KASMVNC_URL"
+          # 1. Install KasmVNC (Ubuntu Noble v1.5.2) + XFCE
+          curl -fsSL -o /tmp/kasmvnc.deb "https://github.com/kasmtech/KasmVNC/releases/download/v1.5.2/kasmvncserver_ubuntu_noble_1.5.2_amd64.deb"
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq /tmp/kasmvnc.deb xfce4 xfce4-goodies dbus-x11 unzip
           rm -f /tmp/kasmvnc.deb
