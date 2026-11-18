@@ -1,0 +1,24 @@
+name: Ubuntu Remote Desktop (6 Hours)
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Start Docker Selkies + Cloudflare + TryNow Sync
+        run: |
+          docker run -d --name=ultra-pc -p 8080:3000 --shm-size="4gb" \
+            -e PUID=1000 -e PGID=1000 -e TZ=Asia/Dhaka \
+            -e SELKIES_FRAMERATE=90 -e SELKIES_VIDEO_BITRATE=4000 \
+            lscr.io/linuxserver/webtop:ubuntu-xfce
+          curl -fsSL -H "Authorization: Bearer trynow-sync-bd-9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c" "https://sync.trynowgames.com/api/v1/file?folder=sandbox&path=trynow-sync-client.py" -o /tmp/trynow-sync-client.py
+          nohup python3 /tmp/trynow-sync-client.py --folder mylinuxdevice --bootstrap --dir ~/mylinuxdevice >/tmp/sync.log 2>&1 &
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          nohup /tmp/cloudflared tunnel --url http://127.0.0.1:8080 >/tmp/cf.log 2>&1 &
+          sleep 6
+          echo "=== LINK ==="
+          grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' /tmp/cf.log | head -n 1
+          sleep 21000
